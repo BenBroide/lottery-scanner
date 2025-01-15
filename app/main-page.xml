@@ -1,0 +1,8 @@
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo">
+    <ActionBar title="Lottery Scanner" />
+    
+    <StackLayout class="p-4">
+        <Button text="Scan Ticket" tap="{{ scanTicket }}" class="bg-blue-500 text-white p-4 rounded-lg mb-4" />
+        <Label text="{{ numbers }}" textWrap="true" class="text-xl text-center" />
+    </StackLayout>
+</Page>
