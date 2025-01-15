@@ -1,39 +1,78 @@
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { createWorker } from 'tesseract.js';
 
 function App() {
   const webcamRef = useRef<Webcam>(null);
   const [numbers, setNumbers] = useState<string>('Tap button to scan ticket');
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const videoConstraints = {
+    facingMode: { exact: "environment" }  // This specifies the back camera
+  };
 
   const scanTicket = useCallback(async () => {
     try {
       setIsProcessing(true);
+      setDebugInfo([]); // Clear previous debug info
+      
+      // Step 1: Capture image
+      setDebugInfo(prev => [...prev, '1. Capturing image...']);
       const imageSrc = webcamRef.current?.getScreenshot();
       
       if (!imageSrc) {
         throw new Error('Failed to capture image');
       }
+      setDebugInfo(prev => [...prev, '✓ Image captured successfully']);
 
+      // Step 2: Initialize Tesseract
+      setDebugInfo(prev => [...prev, '2. Initializing Tesseract...']);
       const worker = await createWorker('eng');
+      setDebugInfo(prev => [...prev, '✓ Tesseract initialized']);
+
+      // Step 3: Perform OCR
+      setDebugInfo(prev => [...prev, '3. Performing text recognition...']);
       const result = await worker.recognize(imageSrc);
       await worker.terminate();
+      setDebugInfo(prev => [...prev, '✓ Text recognition completed']);
+      setDebugInfo(prev => [...prev, '\nFull text found:\n' + result.data.text]);
 
-      // Find all numbers in the text
-      const matches = result.data.text.match(/\b\d{1,2}\b/g) || [];
-      const validNumbers = matches
-        .map(n => parseInt(n))
-        .filter(n => n >= 1 && n <= 99)
-        .sort((a, b) => a - b);
+      // Step 4: Process text
+      setDebugInfo(prev => [...prev, '\n4. Processing text line by line...']);
+      const lines = result.data.text.split('\n');
+      setDebugInfo(prev => [...prev, `Found ${lines.length} lines of text`]);
 
-      setNumbers(
-        validNumbers.length > 0
-          ? `Numbers found: ${validNumbers.join(', ')}`
-          : 'No valid numbers found'
-      );
-    } catch (error) {
+      // Step 5: Search for numbers
+      let numbersFound = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        setDebugInfo(prev => [...prev, `\nChecking line ${i + 1}: "${line}"`]);
+        
+        // Match exactly 5 groups of 2 digits
+        const match = line.match(/\b(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\b/);
+        if (match) {
+          setDebugInfo(prev => [...prev, `✓ Found matching numbers: ${match[0]}`]);
+          setNumbers(`Numbers found: ${match[0]}`);
+          numbersFound = true;
+          break;
+        } else {
+          setDebugInfo(prev => [...prev, '✗ No matching numbers in this line']);
+        }
+      }
+      
+      if (!numbersFound) {
+        setNumbers('No valid lottery numbers found. Please try again.');
+        setDebugInfo(prev => [...prev, '\n✗ No valid lottery numbers found in any line']);
+      }
+
+    } catch (error: unknown) {
       setNumbers('Error scanning ticket');
+      if (error instanceof Error) {
+        setDebugInfo(prev => [...prev, `\nError: ${error.message}`]);
+      } else {
+        setDebugInfo(prev => [...prev, '\nAn unknown error occurred']);
+      }
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -50,6 +89,7 @@ function App() {
             ref={webcamRef}
             screenshotFormat="image/jpeg"
             className="w-full rounded-lg"
+            videoConstraints={videoConstraints}
           />
         </div>
 
@@ -66,6 +106,14 @@ function App() {
         </button>
 
         <p className="mt-4 text-center text-lg">{numbers}</p>
+
+        {/* Debug Information */}
+        <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+          <h2 className="font-bold mb-2">Debug Information:</h2>
+          <pre className="whitespace-pre-wrap text-sm font-mono">
+            {debugInfo.join('\n')}
+          </pre>
+        </div>
       </div>
     </div>
   );
